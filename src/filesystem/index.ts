@@ -177,6 +177,14 @@ const GetMultipleFilesInfoArgsSchema = z.object({
   paths: z.array(z.string())
 });
 
+const DeleteFileArgsSchema = z.object({
+  path: z.string(),
+});
+
+const DeleteMultipleFilesArgsSchema = z.object({
+  paths: z.array(z.string())
+});
+
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 
@@ -533,6 +541,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(GetMultipleFilesInfoArgsSchema) as ToolInput,
       },
       {
+        name: "delete_file",
+        description:
+          "Deletes a file at the specified path. The operation will fail gracefully if:" +
+          "    - The file doesn't exist" +
+          "    - The operation is rejected for security reasons" +
+          "    - The file cannot be deleted" +
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
+        inputSchema: zodToJsonSchema(DeleteFileArgsSchema) as ToolInput,
+      },
+      {
+        name: "delete_multiple_files",
+        description:
+          "Delete multiple files in a single operation. This tool significantly " +
+          "improves efficiency by allowing parallel file deletion, eliminating the need for sequential delete operations. " +
+          "Perfect for scenarios where multiple related files need to be removed together, such as cleaning up temporary files, " +
+          "removing generated assets, or implementing bulk file operations. " +
+          "Each operation will fail gracefully if the file doesn't exist, the operation is rejected for security reasons, " +
+          "or the file cannot be deleted. Results are clearly separated by file path. " +
+          "This parallel approach dramatically speeds up file management tasks. " +
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
+        inputSchema: zodToJsonSchema(DeleteMultipleFilesArgsSchema) as ToolInput,
+      },
+      {
         name: "list_allowed_directories",
         description:
           "Returns the list of directories that this server is allowed to access. " +
@@ -845,6 +878,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         return {
           content: [{ type: "text", text: results.join("\n\n") }],
+        };
+      }
+
+      case "delete_file": {
+        const parsed = DeleteFileArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for delete_file: ${parsed.error}`);
+        }
+        const validPath = await validatePath(parsed.data.path);
+        await fs.unlink(validPath);
+        return {
+          content: [{ type: "text", text: `Successfully deleted file ${parsed.data.path}` }],
+        };
+      }
+
+      case "delete_multiple_files": {
+        const parsed = DeleteMultipleFilesArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for delete_multiple_files: ${parsed.error}`);
+        }
+
+        const results = await Promise.all(
+          parsed.data.paths.map(async (filePath) => {
+            try {
+              const validPath = await validatePath(filePath);
+              await fs.unlink(validPath);
+              return `Successfully deleted file ${filePath}`;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              return `Error deleting ${filePath}: ${errorMessage}`;
+            }
+          })
+        );
+
+        return {
+          content: [{ type: "text", text: results.join("\n") }],
         };
       }
 
