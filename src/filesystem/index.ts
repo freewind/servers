@@ -108,6 +108,14 @@ const WriteFileArgsSchema = z.object({
   content: z.string(),
 });
 
+const WriteMultipleFilesArgsSchema = z.object({
+  files: z.array(z.object({
+    path: z.string(),
+    content: z.string(),
+    encoding: z.string().optional().default('utf-8')
+  }))
+});
+
 const EditOperation = z.object({
   oldText: z.string().describe('Text to search for - must match exactly'),
   newText: z.string().describe('Text to replace with')
@@ -146,8 +154,7 @@ const GetFileInfoArgsSchema = z.object({
   path: z.string(),
 });
 
-const ToolInputSchema = ToolSchema.shape.inputSchema;
-type ToolInput = z.infer<typeof ToolInputSchema>;
+const ToolInputSchema = ToolSchema.shape.inputSchema; type ToolInput = z.infer<typeof ToolInputSchema>;
 
 interface FileInfo {
   size: number;
@@ -254,7 +261,7 @@ function createUnifiedDiff(originalContent: string, newContent: string, filepath
 
 async function applyFileEdits(
   filePath: string,
-  edits: Array<{oldText: string, newText: string}>,
+  edits: Array<{ oldText: string, newText: string }>,
   dryRun = false
 ): Promise<string> {
   // Read file content and normalize line endings
@@ -350,7 +357,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "efficient than reading files one by one when you need to analyze " +
           "or compare multiple files. Each file's content is returned with its " +
           "path as a reference. Failed reads for individual files won't stop " +
-          "the entire operation. Only works within allowed directories.",
+          "the entire operation. Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(ReadMultipleFilesArgsSchema) as ToolInput,
       },
       {
@@ -360,6 +368,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Use with caution as it will overwrite existing files without warning. " +
           "Handles text content with proper encoding. Only works within allowed directories.",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema) as ToolInput,
+      },
+      {
+        name: "write_multiple_files",
+        description:
+          "Create or overwrite multiple files simultaneously in a single operation. " +
+          "This tool significantly improves efficiency by allowing parallel file writing, " +
+          "eliminating the need for sequential write operations. " +
+          "Perfect for scenarios where multiple related files need to be created or updated together, " +
+          "such as generating components with their corresponding test files, or creating a complete " +
+          "project structure. Each file can specify its own encoding. " +
+          "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
+          "Use with caution as it will overwrite existing files without warning. " +
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
+        inputSchema: zodToJsonSchema(WriteMultipleFilesArgsSchema) as ToolInput,
       },
       {
         name: "edit_file",
@@ -390,10 +413,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "directory_tree",
         description:
-            "Get a recursive tree view of files and directories as a JSON structure. " +
-            "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
-            "Files have no children array, while directories always have a children array (which may be empty). " +
-            "The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
+          "Get a recursive tree view of files and directories as a JSON structure. " +
+          "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
+          "Files have no children array, while directories always have a children array (which may be empty). " +
+          "The output is formatted with 2-space indentation for readability. Only works within allowed directories." +
+          "Important: When you call this tool, you must be sure it is not a project root which may contain '.git/' or '.node_modules/' directories, which are too large to break the conversation.",
         inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
       },
       {
@@ -491,6 +515,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case "write_multiple_files": {
+        const parsed = WriteMultipleFilesArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for write_multiple_files: ${parsed.error}`);
+        }
+
+        const results = await Promise.all(
+          parsed.data.files.map(async (file) => {
+            try {
+              const validPath = await validatePath(file.path);
+              await fs.writeFile(validPath, file.content, (file.encoding || 'utf-8') as any);
+              return `Successfully wrote to ${file.path}`;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              return `Error writing to ${file.path}: ${errorMessage}`;
+            }
+          })
+        );
+
+        return {
+          content: [{ type: "text", text: results.join("\n") }],
+        };
+      }
+
       case "edit_file": {
         const parsed = EditFileArgsSchema.safeParse(args);
         if (!parsed.success) {
@@ -530,48 +578,48 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-        case "directory_tree": {
-            const parsed = DirectoryTreeArgsSchema.safeParse(args);
-            if (!parsed.success) {
-                throw new Error(`Invalid arguments for directory_tree: ${parsed.error}`);
-            }
-
-            interface TreeEntry {
-                name: string;
-                type: 'file' | 'directory';
-                children?: TreeEntry[];
-            }
-
-            async function buildTree(currentPath: string): Promise<TreeEntry[]> {
-                const validPath = await validatePath(currentPath);
-                const entries = await fs.readdir(validPath, {withFileTypes: true});
-                const result: TreeEntry[] = [];
-
-                for (const entry of entries) {
-                    const entryData: TreeEntry = {
-                        name: entry.name,
-                        type: entry.isDirectory() ? 'directory' : 'file'
-                    };
-
-                    if (entry.isDirectory()) {
-                        const subPath = path.join(currentPath, entry.name);
-                        entryData.children = await buildTree(subPath);
-                    }
-
-                    result.push(entryData);
-                }
-
-                return result;
-            }
-
-            const treeData = await buildTree(parsed.data.path);
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(treeData, null, 2)
-                }],
-            };
+      case "directory_tree": {
+        const parsed = DirectoryTreeArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for directory_tree: ${parsed.error}`);
         }
+
+        interface TreeEntry {
+          name: string;
+          type: 'file' | 'directory';
+          children?: TreeEntry[];
+        }
+
+        async function buildTree(currentPath: string): Promise<TreeEntry[]> {
+          const validPath = await validatePath(currentPath);
+          const entries = await fs.readdir(validPath, { withFileTypes: true });
+          const result: TreeEntry[] = [];
+
+          for (const entry of entries) {
+            const entryData: TreeEntry = {
+              name: entry.name,
+              type: entry.isDirectory() ? 'directory' : 'file'
+            };
+
+            if (entry.isDirectory()) {
+              const subPath = path.join(currentPath, entry.name);
+              entryData.children = await buildTree(subPath);
+            }
+
+            result.push(entryData);
+          }
+
+          return result;
+        }
+
+        const treeData = await buildTree(parsed.data.path);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(treeData, null, 2)
+          }],
+        };
+      }
 
       case "move_file": {
         const parsed = MoveFileArgsSchema.safeParse(args);
@@ -606,9 +654,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validPath = await validatePath(parsed.data.path);
         const info = await getFileStats(validPath);
         return {
-          content: [{ type: "text", text: Object.entries(info)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join("\n") }],
+          content: [{
+            type: "text", text: Object.entries(info)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join("\n")
+          }],
         };
       }
 
@@ -645,3 +695,5 @@ runServer().catch((error) => {
   console.error("Fatal error running server:", error);
   process.exit(1);
 });
+
+
