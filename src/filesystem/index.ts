@@ -400,7 +400,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Create a new file or completely overwrite an existing file with new content. " +
           "Use with caution as it will overwrite existing files without warning. " +
           "Handles text content with proper encoding. Only works within allowed directories." +
-          "Important: should always pass full paths to this tool.",
+          "Important: should always pass full paths to this tool. " +
+          "Note: When writing content with line breaks, use '\n' not '\\n'.",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema) as ToolInput,
       },
       {
@@ -415,7 +416,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
           "Use with caution as it will overwrite existing files without warning. " +
           "Only works within allowed directories." +
-          "Important: should always pass full paths to this tool.",
+          "Important: should always pass full paths to this tool. " +
+          "Note: When writing content with line breaks, use '\n' not '\\n'.",
         inputSchema: zodToJsonSchema(WriteMultipleFilesArgsSchema) as ToolInput,
       },
       {
@@ -424,7 +426,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Make line-based edits to a text file. Each edit replaces exact line sequences " +
           "with new content. Returns a git-style diff showing the changes made. " +
           "Only works within allowed directories." +
-          "Important: should always pass full paths to this tool.",
+          "Important: should always pass full paths to this tool. " +
+          "Note: When writing content with line breaks, use '\n' not '\\n'.",
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput,
       },
       {
@@ -437,7 +440,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Each file edit operation returns a git-style diff showing the changes made. " +
           "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
           "Only works within allowed directories." +
-          "Important: should always pass full paths to this tool.",
+          "Important: should always pass full paths to this tool. " +
+          "Note: When writing content with line breaks, use '\n' not '\\n'.",
         inputSchema: zodToJsonSchema(EditMultipleFilesArgsSchema) as ToolInput,
       },
       {
