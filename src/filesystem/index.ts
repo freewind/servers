@@ -173,6 +173,10 @@ const GetFileInfoArgsSchema = z.object({
   path: z.string(),
 });
 
+const GetMultipleFilesInfoArgsSchema = z.object({
+  paths: z.array(z.string())
+});
+
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 
@@ -507,6 +511,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(GetFileInfoArgsSchema) as ToolInput,
       },
       {
+        name: "get_multiple_files_info",
+        description:
+          "Retrieve detailed metadata about multiple files or directories in a single operation. This tool significantly " +
+          "improves efficiency by allowing parallel metadata retrieval, eliminating the need for sequential operations. " +
+          "Perfect for scenarios where you need to analyze multiple files simultaneously, such as comparing file timestamps, " +
+          "checking permissions across a set of files, or gathering comprehensive information about project assets. " +
+          "Returns comprehensive information including size, creation time, last modified time, permissions, and type for each file. " +
+          "Results are clearly separated by file path. This parallel approach dramatically speeds up information gathering. " +
+          "Only works within allowed directories.",
+        inputSchema: zodToJsonSchema(GetMultipleFilesInfoArgsSchema) as ToolInput,
+      },
+      {
         name: "list_allowed_directories",
         description:
           "Returns the list of directories that this server is allowed to access. " +
@@ -793,6 +809,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               .map(([key, value]) => `${key}: ${value}`)
               .join("\n")
           }],
+        };
+      }
+
+      case "get_multiple_files_info": {
+        const parsed = GetMultipleFilesInfoArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for get_multiple_files_info: ${parsed.error}`);
+        }
+
+        const results = await Promise.all(
+          parsed.data.paths.map(async (filePath) => {
+            try {
+              const validPath = await validatePath(filePath);
+              const info = await getFileStats(validPath);
+              return `File: ${filePath}\n${Object.entries(info)
+                .map(([key, value]) => `  ${key}: ${value}`)
+                .join("\n")}`;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              return `Error getting info for ${filePath}: ${errorMessage}`;
+            }
+          })
+        );
+
+        return {
+          content: [{ type: "text", text: results.join("\n\n") }],
         };
       }
 
