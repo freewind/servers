@@ -143,6 +143,10 @@ const ListDirectoryArgsSchema = z.object({
   path: z.string(),
 });
 
+const ListMultipleDirectoriesArgsSchema = z.object({
+  paths: z.array(z.string())
+});
+
 const DirectoryTreeArgsSchema = z.object({
   path: z.string(),
 });
@@ -440,6 +444,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(ListDirectoryArgsSchema) as ToolInput,
       },
       {
+        name: "list_multiple_directories",
+        description:
+          "Get detailed listings of multiple directories in a single operation. This tool significantly " +
+          "improves efficiency by allowing parallel directory scanning, eliminating the need for sequential listing operations. " +
+          "Perfect for scenarios where you need to explore multiple related directories simultaneously, such as " +
+          "comparing directory structures, gathering comprehensive project information, or analyzing related components. " +
+          "Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes, and each directory's " +
+          "contents are clearly separated. This parallel approach dramatically speeds up exploration and information gathering. " +
+          "Only works within allowed directories.",
+        inputSchema: zodToJsonSchema(ListMultipleDirectoriesArgsSchema) as ToolInput,
+      },
+      {
         name: "directory_tree",
         description:
           "Get a recursive tree view of files and directories as a JSON structure. " +
@@ -641,6 +657,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join("\n");
         return {
           content: [{ type: "text", text: formatted }],
+        };
+      }
+
+      case "list_multiple_directories": {
+        const parsed = ListMultipleDirectoriesArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for list_multiple_directories: ${parsed.error}`);
+        }
+
+        const results = await Promise.all(
+          parsed.data.paths.map(async (dirPath) => {
+            try {
+              const validPath = await validatePath(dirPath);
+              const entries = await fs.readdir(validPath, { withFileTypes: true });
+              const formatted = entries
+                .map((entry) => `${entry.isDirectory() ? "[DIR]" : "[FILE]"} ${entry.name}`)
+                .join("\n");
+              return `Directory: ${dirPath}\n${formatted}`;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              return `Error listing ${dirPath}: ${errorMessage}`;
+            }
+          })
+        );
+
+        return {
+          content: [{ type: "text", text: results.join("\n\n") }],
         };
       }
 
