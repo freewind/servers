@@ -152,6 +152,13 @@ const MoveFileArgsSchema = z.object({
   destination: z.string(),
 });
 
+const MoveMultipleFilesArgsSchema = z.object({
+  files: z.array(z.object({
+    source: z.string(),
+    destination: z.string()
+  }))
+});
+
 const SearchFilesArgsSchema = z.object({
   path: z.string(),
   pattern: z.string(),
@@ -452,6 +459,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(MoveFileArgsSchema) as ToolInput,
       },
       {
+        name: "move_multiple_files",
+        description:
+          "Move or rename multiple files and directories in a single operation. This tool significantly " +
+          "improves efficiency by allowing parallel file operations, eliminating the need for sequential moves. " +
+          "Perfect for scenarios where multiple related files need to be reorganized together, such as " +
+          "restructuring project directories, migrating components, or implementing bulk file operations. " +
+          "Each operation can move files between directories and rename them simultaneously. " +
+          "This parallel approach dramatically speeds up development workflows and file organization tasks. " +
+          "All source and destination paths must be within allowed directories." +
+          "Important: should always pass full paths to this tool.",
+        inputSchema: zodToJsonSchema(MoveMultipleFilesArgsSchema) as ToolInput,
+      },
+      {
         name: "search_files",
         description:
           "Recursively search for files and directories matching a pattern. " +
@@ -677,6 +697,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         await fs.rename(validSourcePath, validDestPath);
         return {
           content: [{ type: "text", text: `Successfully moved ${parsed.data.source} to ${parsed.data.destination}` }],
+        };
+      }
+
+      case "move_multiple_files": {
+        const parsed = MoveMultipleFilesArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for move_multiple_files: ${parsed.error}`);
+        }
+
+        const results = await Promise.all(
+          parsed.data.files.map(async (file) => {
+            try {
+              const validSourcePath = await validatePath(file.source);
+              const validDestPath = await validatePath(file.destination);
+              await fs.rename(validSourcePath, validDestPath);
+              return `Successfully moved ${file.source} to ${file.destination}`;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              return `Error moving ${file.source} to ${file.destination}: ${errorMessage}`;
+            }
+          })
+        );
+
+        return {
+          content: [{ type: "text", text: results.join("\n") }],
         };
       }
 
