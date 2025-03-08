@@ -127,6 +127,14 @@ const EditFileArgsSchema = z.object({
   dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format')
 });
 
+const EditMultipleFilesArgsSchema = z.object({
+  files: z.array(z.object({
+    path: z.string(),
+    edits: z.array(EditOperation),
+    dryRun: z.boolean().default(false)
+  }))
+});
+
 const CreateDirectoryArgsSchema = z.object({
   path: z.string(),
 });
@@ -154,7 +162,8 @@ const GetFileInfoArgsSchema = z.object({
   path: z.string(),
 });
 
-const ToolInputSchema = ToolSchema.shape.inputSchema; type ToolInput = z.infer<typeof ToolInputSchema>;
+const ToolInputSchema = ToolSchema.shape.inputSchema;
+type ToolInput = z.infer<typeof ToolInputSchema>;
 
 interface FileInfo {
   size: number;
@@ -393,6 +402,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput,
       },
       {
+        name: "edit_multiple_files",
+        description:
+          "Make line-based edits to multiple text files in a single operation. This tool significantly " +
+          "improves efficiency by allowing parallel file editing, eliminating the need for sequential edit operations. " +
+          "Perfect for scenarios where multiple related files need to be modified together, such as refactoring " +
+          "across components, updating imports, or implementing cross-cutting changes. " +
+          "Each file edit operation returns a git-style diff showing the changes made. " +
+          "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
+        inputSchema: zodToJsonSchema(EditMultipleFilesArgsSchema) as ToolInput,
+      },
+      {
         name: "create_directory",
         description:
           "Create a new directory or ensure a directory exists. Can create multiple " +
@@ -551,6 +573,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case "edit_multiple_files": {
+        const parsed = EditMultipleFilesArgsSchema.safeParse(args);
+        if (!parsed.success) {
+          throw new Error(`Invalid arguments for edit_multiple_files: ${parsed.error}`);
+        }
+
+        const results = await Promise.all(
+          parsed.data.files.map(async (file) => {
+            try {
+              const validPath = await validatePath(file.path);
+              const result = await applyFileEdits(validPath, file.edits, file.dryRun);
+              return `File: ${file.path}\n${result}`;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              return `Error editing ${file.path}: ${errorMessage}`;
+            }
+          })
+        );
+
+        return {
+          content: [{ type: "text", text: results.join("\n---\n") }],
+        };
+      }
+
       case "create_directory": {
         const parsed = CreateDirectoryArgsSchema.safeParse(args);
         if (!parsed.success) {
@@ -695,5 +741,3 @@ runServer().catch((error) => {
   console.error("Fatal error running server:", error);
   process.exit(1);
 });
-
-
