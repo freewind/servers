@@ -371,7 +371,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Read the complete contents of a file from the file system. " +
           "Handles various text encodings and provides detailed error messages " +
           "if the file cannot be read. Use this tool when you need to examine " +
-          "the contents of a single file. Only works within allowed directories.",
+          "the contents of a single file. Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(ReadFileArgsSchema) as ToolInput,
       },
       {
@@ -390,7 +391,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         description:
           "Create a new file or completely overwrite an existing file with new content. " +
           "Use with caution as it will overwrite existing files without warning. " +
-          "Handles text content with proper encoding. Only works within allowed directories.",
+          "Handles text content with proper encoding. Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema) as ToolInput,
       },
       {
@@ -413,7 +415,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         description:
           "Make line-based edits to a text file. Each edit replaces exact line sequences " +
           "with new content. Returns a git-style diff showing the changes made. " +
-          "Only works within allowed directories.",
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput,
       },
       {
@@ -435,7 +438,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Create a new directory or ensure a directory exists. Can create multiple " +
           "nested directories in one operation. If the directory already exists, " +
           "this operation will succeed silently. Perfect for setting up directory " +
-          "structures for projects or ensuring required paths exist. Only works within allowed directories.",
+          "structures for projects or ensuring required paths exist. Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(CreateDirectoryArgsSchema) as ToolInput,
       },
       {
@@ -444,7 +448,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Get a detailed listing of all files and directories in a specified path. " +
           "Results clearly distinguish between files and directories with [FILE] and [DIR] " +
           "prefixes. This tool is essential for understanding directory structure and " +
-          "finding specific files within a directory. Only works within allowed directories.",
+          "finding specific files within a directory. Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(ListDirectoryArgsSchema) as ToolInput,
       },
       {
@@ -456,7 +461,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "comparing directory structures, gathering comprehensive project information, or analyzing related components. " +
           "Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes, and each directory's " +
           "contents are clearly separated. This parallel approach dramatically speeds up exploration and information gathering. " +
-          "Only works within allowed directories.",
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(ListMultipleDirectoriesArgsSchema) as ToolInput,
       },
       {
@@ -475,7 +481,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Move or rename files and directories. Can move files between directories " +
           "and rename them in a single operation. If the destination exists, the " +
           "operation will fail. Works across different directories and can be used " +
-          "for simple renaming within the same directory. Both source and destination must be within allowed directories.",
+          "for simple renaming within the same directory. Both source and destination must be within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(MoveFileArgsSchema) as ToolInput,
       },
       {
@@ -498,7 +505,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Searches through all subdirectories from the starting path. The search " +
           "is case-insensitive and matches partial names. Returns full paths to all " +
           "matching items. Great for finding files when you don't know their exact location. " +
-          "Only searches within allowed directories.",
+          "Only searches within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(SearchFilesArgsSchema) as ToolInput,
       },
       {
@@ -507,7 +515,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Retrieve detailed metadata about a file or directory. Returns comprehensive " +
           "information including size, creation time, last modified time, permissions, " +
           "and type. This tool is perfect for understanding file characteristics " +
-          "without reading the actual content. Only works within allowed directories.",
+          "without reading the actual content. Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(GetFileInfoArgsSchema) as ToolInput,
       },
       {
@@ -519,7 +528,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "checking permissions across a set of files, or gathering comprehensive information about project assets. " +
           "Returns comprehensive information including size, creation time, last modified time, permissions, and type for each file. " +
           "Results are clearly separated by file path. This parallel approach dramatically speeds up information gathering. " +
-          "Only works within allowed directories.",
+          "Only works within allowed directories." +
+          "Important: should always pass full paths to this tool.",
         inputSchema: zodToJsonSchema(GetMultipleFilesInfoArgsSchema) as ToolInput,
       },
       {
