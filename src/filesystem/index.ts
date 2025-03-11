@@ -401,7 +401,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Use with caution as it will overwrite existing files without warning. " +
           "Handles text content with proper encoding. Only works within allowed directories." +
           "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use '\n' not '\\n'.",
+          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema) as ToolInput,
       },
       {
@@ -417,7 +417,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Use with caution as it will overwrite existing files without warning. " +
           "Only works within allowed directories." +
           "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use '\n' not '\\n'.",
+          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
         inputSchema: zodToJsonSchema(WriteMultipleFilesArgsSchema) as ToolInput,
       },
       {
@@ -427,7 +427,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "with new content. Returns a git-style diff showing the changes made. " +
           "Only works within allowed directories." +
           "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use '\n' not '\\n'.",
+          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput,
       },
       {
@@ -441,7 +441,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
           "Only works within allowed directories." +
           "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use '\n' not '\\n'.",
+          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
         inputSchema: zodToJsonSchema(EditMultipleFilesArgsSchema) as ToolInput,
       },
       {
@@ -483,8 +483,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Get a recursive tree view of files and directories as a JSON structure. " +
           "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
           "Files have no children array, while directories always have a children array (which may be empty). " +
-          "The output is formatted with 2-space indentation for readability. Only works within allowed directories." +
-          "Important: When you call this tool, you must be sure it is not a project root which may contain '.git/' or '.node_modules/' directories, which are too large to break the conversation.",
+          "Large directories are automatically ignored, including: .git, node_modules, .next, dist, build, coverage, .vscode, .idea, vendor, tmp, and release-history. " +
+          "The output is formatted with 2-space indentation for readability. Only works within allowed directories. " +
+          "AI can safely use this tool on project roots without worrying about excessive output - if any issues occur, the user will promptly fix them.",
         inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
       },
       {
@@ -762,12 +763,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           children?: TreeEntry[];
         }
 
+        // Blacklist for large directories that should be ignored
+        const directoryBlacklist = [
+          '.git',
+          'node_modules',
+          '.next',
+          'dist',
+          'build',
+          'coverage',
+          '.vscode',
+          '.idea',
+          'vendor',
+          'tmp',
+          'release-history'
+        ];
+
         async function buildTree(currentPath: string): Promise<TreeEntry[]> {
           const validPath = await validatePath(currentPath);
           const entries = await fs.readdir(validPath, { withFileTypes: true });
           const result: TreeEntry[] = [];
 
           for (const entry of entries) {
+            // Skip blacklisted directories
+            if (entry.isDirectory() && directoryBlacklist.includes(entry.name)) {
+              continue;
+            }
+
             const entryData: TreeEntry = {
               name: entry.name,
               type: entry.isDirectory() ? 'directory' : 'file'
