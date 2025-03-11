@@ -96,93 +96,93 @@ async function validatePath(requestedPath: string): Promise<string> {
 
 // Schema definitions
 const ReadFileArgsSchema = z.object({
-  path: z.string(),
+  path: z.string().describe('Path to the file to read. Must be a full path - always use absolute paths.'),
 });
 
 const ReadMultipleFilesArgsSchema = z.object({
-  paths: z.array(z.string()),
+  paths: z.array(z.string()).describe('Array of file paths to read simultaneously. Must use full paths - always provide absolute paths.'),
 });
 
 const WriteFileArgsSchema = z.object({
-  path: z.string(),
-  content: z.string(),
+  path: z.string().describe('Path where the file should be written. Must be a full path - always use absolute paths.'),
+  content: z.string().describe('Content to write to the file. When writing content with line breaks, use single backslash + "n" rather than double backslashes.'),
 });
 
 const WriteMultipleFilesArgsSchema = z.object({
   files: z.array(z.object({
-    path: z.string(),
-    content: z.string(),
-    encoding: z.string().optional().default('utf-8')
-  }))
+    path: z.string().describe('Path where the file should be written. Must be a full path - always use absolute paths.'),
+    content: z.string().describe('Content to write to the file. When writing content with line breaks, use single backslash + "n" rather than double backslashes.'),
+    encoding: z.string().optional().default('utf-8').describe('Encoding to use when writing the file (default: utf-8). Common values: utf-8, ascii, binary')
+  })).describe('Array of file objects to write simultaneously. Ideal for creating multiple related files in one operation.')
 });
 
 const EditOperation = z.object({
-  oldText: z.string().describe('Text to search for - must match exactly'),
-  newText: z.string().describe('Text to replace with')
+  oldText: z.string().describe('Text to search for - must match exactly. Be careful with whitespace, indentation, and line endings.'),
+  newText: z.string().describe('Text to replace with. When including line breaks, use single backslash + "n" rather than double backslashes.')
 });
 
 const EditFileArgsSchema = z.object({
-  path: z.string(),
-  edits: z.array(EditOperation),
-  dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format')
+  path: z.string().describe('Path of the file to edit. Must be a full path - always use absolute paths.'),
+  edits: z.array(EditOperation).describe('Array of edit operations to apply. Each edit replaces exact line sequences with new content. Be careful with whitespace and line endings in both old and new text. When including line breaks, use single backslash + "n" rather than double backslashes.'),
+  dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format. Set to true to see changes without applying them.')
 });
 
 const EditMultipleFilesArgsSchema = z.object({
   files: z.array(z.object({
-    path: z.string(),
-    edits: z.array(EditOperation),
-    dryRun: z.boolean().default(false)
-  }))
+    path: z.string().describe('Path of the file to edit. Must be a full path - always use absolute paths.'),
+    edits: z.array(EditOperation).describe('Array of edit operations to apply. Each edit replaces exact line sequences with new content. Be careful with whitespace and line endings in both old and new text. When including line breaks, use single backslash + "n" rather than double backslashes.'),
+    dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format. Set to true to see changes without applying them.')
+  })).describe('Array of file edit operations to perform simultaneously. Perfect for refactoring across components or implementing cross-cutting changes.')
 });
 
 const CreateDirectoryArgsSchema = z.object({
-  path: z.string(),
+  path: z.string().describe('Path of the directory to create (will create parent directories as needed). Must be a full path - always use absolute paths.'),
 });
 
 const ListDirectoryArgsSchema = z.object({
-  path: z.string(),
+  path: z.string().describe('Path of the directory to list contents. Must be a full path - always use absolute paths.'),
 });
 
 const ListMultipleDirectoriesArgsSchema = z.object({
-  paths: z.array(z.string())
+  paths: z.array(z.string()).describe('Array of directory paths to list simultaneously. Must use full paths - always provide absolute paths. Results show [FILE] and [DIR] prefixes for each entry.')
 });
 
 const DirectoryTreeArgsSchema = z.object({
-  path: z.string(),
+  path: z.string().describe('Directory path to create a tree view from. Must be a full path - always use absolute paths. Returns a recursive structure of all files and directories, excluding large directories like node_modules/.git etc.'),
 });
 
 const MoveFileArgsSchema = z.object({
-  source: z.string(),
-  destination: z.string(),
+  source: z.string().describe('Source path of the file or directory to move/rename. Must be a full path - always use absolute paths.'),
+  destination: z.string().describe('Destination path where the file or directory should be moved to. Must be a full path - always use absolute paths.'),
 });
 
 const MoveMultipleFilesArgsSchema = z.object({
   files: z.array(z.object({
-    source: z.string(),
-    destination: z.string()
-  }))
+    source: z.string().describe('Source path of the file or directory to move/rename. Must be a full path - always use absolute paths.'),
+    destination: z.string().describe('Destination path where the file or directory should be moved to. Must be a full path - always use absolute paths.')
+  })).describe('Array of file move operations to perform simultaneously. If any destination exists, the operation will fail.')
 });
 
 const SearchFilesArgsSchema = z.object({
-  path: z.string(),
-  pattern: z.string(),
-  excludePatterns: z.array(z.string()).optional().default([])
+  path: z.string().describe('Root directory path to start searching from. Must be a full path - always use absolute paths.'),
+  pattern: z.string().describe('Text pattern to search for in filenames (case-insensitive). Partial matches are supported - no need for wildcards for simple searches.'),
+  excludePatterns: z.array(z.string()).optional().default([]).describe('Optional array of glob patterns to exclude from search. For example ["*.log", "temp/*"] would exclude all .log files and the temp directory.')
 });
 
 const GetFileInfoArgsSchema = z.object({
-  path: z.string(),
+  path: z.string().describe('Path of the file or directory to get information about. Must be a full path - always use absolute paths.'),
 });
 
 const GetMultipleFilesInfoArgsSchema = z.object({
-  paths: z.array(z.string())
+  paths: z.array(z.string()).describe('Array of file/directory paths to get information about simultaneously. Must use full paths - always provide absolute paths. Returns size, timestamps, permissions, and type for each file.')
 });
 
 const DeleteFileArgsSchema = z.object({
-  path: z.string(),
+  path: z.string().describe('Path of the file to delete. Must be a full path - always use absolute paths. The operation will fail gracefully if the file does not exist or cannot be deleted.'),
 });
 
 const DeleteMultipleFilesArgsSchema = z.object({
-  paths: z.array(z.string())
+  paths: z.array(z.string()).describe('Array of file paths to delete simultaneously. Must use full paths - always provide absolute paths. Operations will fail gracefully for non-existent files.')
 });
 
 const ToolInputSchema = ToolSchema.shape.inputSchema;
@@ -794,7 +794,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             // Get file stats to retrieve size information
             const entryPath = path.join(currentPath, entry.name);
             const stats = await fs.stat(entryPath);
-            
+
             const entryData: TreeEntry = {
               name: entry.name,
               type: entry.isDirectory() ? 'directory' : 'file',
