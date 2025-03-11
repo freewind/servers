@@ -481,7 +481,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "directory_tree",
         description:
           "Get a recursive tree view of files and directories as a JSON structure. " +
-          "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
+          "Each entry includes 'name', 'type' (file/directory), 'size' (in bytes), and 'children' for directories. " +
+          "Size is 0 for directories and actual file size in bytes for files. " +
           "Files have no children array, while directories always have a children array (which may be empty). " +
           "Large directories are automatically ignored, including: .git, node_modules, .next, dist, build, coverage, .vscode, .idea, vendor, tmp, and release-history. " +
           "The output is formatted with 2-space indentation for readability. Only works within allowed directories. " +
@@ -760,6 +761,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         interface TreeEntry {
           name: string;
           type: 'file' | 'directory';
+          size: number; // File size in bytes, 0 for directories
           children?: TreeEntry[];
         }
 
@@ -789,9 +791,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               continue;
             }
 
+            // Get file stats to retrieve size information
+            const entryPath = path.join(currentPath, entry.name);
+            const stats = await fs.stat(entryPath);
+            
             const entryData: TreeEntry = {
               name: entry.name,
-              type: entry.isDirectory() ? 'directory' : 'file'
+              type: entry.isDirectory() ? 'directory' : 'file',
+              size: entry.isDirectory() ? 0 : stats.size // 0 for directories, actual size for files
             };
 
             if (entry.isDirectory()) {
