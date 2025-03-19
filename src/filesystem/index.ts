@@ -484,7 +484,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Each entry includes 'name', 'type' (file/directory), 'size' (in bytes), and 'children' for directories. " +
           "Size is 0 for directories and actual file size in bytes for files. " +
           "Files have no children array, while directories always have a children array (which may be empty). " +
-          "Large directories are automatically ignored, including: .git, node_modules, .next, dist, build, coverage, .vscode, .idea, vendor, tmp, and release-history. " +
+          "All directories starting with '.' will be included in the results but their children will be ignored. " +
+          "Large directories are automatically ignored (included in results but children ignored), including: node_modules, dist, build, coverage, vendor, tmp, and release-history. " +
           "The output is formatted with 2-space indentation for readability. Only works within allowed directories. " +
           "AI can safely use this tool on project roots without worrying about excessive output - if any issues occur, the user will promptly fix them.",
         inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
@@ -767,14 +768,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Blacklist for large directories that should be ignored
         const directoryBlacklist = [
-          '.git',
           'node_modules',
-          '.next',
           'dist',
           'build',
           'coverage',
-          '.vscode',
-          '.idea',
           'vendor',
           'tmp',
           'release-history'
@@ -786,10 +783,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const result: TreeEntry[] = [];
 
           for (const entry of entries) {
-            // Skip blacklisted directories
-            if (entry.isDirectory() && directoryBlacklist.includes(entry.name)) {
-              continue;
-            }
+            // Skip processing children of blacklisted directories or those starting with dot
+            const skipChildren = (entry.isDirectory() &&
+              (directoryBlacklist.includes(entry.name) || entry.name.startsWith('.')));
 
             // Get file stats to retrieve size information
             const entryPath = path.join(currentPath, entry.name);
@@ -802,8 +798,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             };
 
             if (entry.isDirectory()) {
-              const subPath = path.join(currentPath, entry.name);
-              entryData.children = await buildTree(subPath);
+              // Always include empty children array for directories
+              entryData.children = [];
+
+              // Only process children if not in skip list
+              if (!skipChildren) {
+                const subPath = path.join(currentPath, entry.name);
+                entryData.children = await buildTree(subPath);
+              }
             }
 
             result.push(entryData);
