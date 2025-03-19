@@ -486,6 +486,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Files have no children array, while directories always have a children array (which may be empty). " +
           "All directories starting with '.' will be included in the results but their children will be ignored. " +
           "Large directories are automatically ignored (included in results but children ignored), including: node_modules, dist, build, coverage, vendor, tmp, and release-history. " +
+          "To prevent excessive output, results are limited to 100 entries. If there are more entries, a special object with 'hiddenCount' and 'message' fields is added to indicate how many entries were hidden. " +
           "The output is formatted with 2-space indentation for readability. Only works within allowed directories. " +
           "AI can safely use this tool on project roots without worrying about excessive output - if any issues occur, the user will promptly fix them.",
         inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
@@ -764,6 +765,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           type: 'file' | 'directory';
           size: number; // File size in bytes, 0 for directories
           children?: TreeEntry[];
+          hiddenCount?: number; // Count of hidden entries
+          message?: string;    // Message about hidden entries
         }
 
         // Blacklist for large directories that should be ignored
@@ -777,12 +780,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           'release-history'
         ];
 
+        // Max number of entries to return in the tree
+        const MAX_ENTRIES = 100;
+        // Track total entries processed
+        let totalEntries = 0;
+        let hiddenEntries = 0;
+
         async function buildTree(currentPath: string): Promise<TreeEntry[]> {
           const validPath = await validatePath(currentPath);
           const entries = await fs.readdir(validPath, { withFileTypes: true });
           const result: TreeEntry[] = [];
 
           for (const entry of entries) {
+            // If we've reached the limit, don't process more entries
+            if (totalEntries >= MAX_ENTRIES) {
+              hiddenEntries++;
+              continue;
+            }
+
+            totalEntries++;
+
             // Skip processing children of blacklisted directories or those starting with dot
             const skipChildren = (entry.isDirectory() &&
               (directoryBlacklist.includes(entry.name) || entry.name.startsWith('.')));
@@ -801,8 +818,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               // Always include empty children array for directories
               entryData.children = [];
 
-              // Only process children if not in skip list
-              if (!skipChildren) {
+              // Only process children if not in skip list and we haven't hit the limit
+              if (!skipChildren && totalEntries < MAX_ENTRIES) {
                 const subPath = path.join(currentPath, entry.name);
                 entryData.children = await buildTree(subPath);
               }
@@ -815,6 +832,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const treeData = await buildTree(parsed.data.path);
+
+        // Add hidden count information if entries were hidden
+        if (hiddenEntries > 0) {
+          treeData.push({
+            name: "_hidden_entries_info",
+            type: "directory",
+            size: 0,
+            hiddenCount: hiddenEntries,
+            message: "Some entries were hidden to prevent context overflow. If you need to explore specific directories further, please use appropriate tools like list_directory or search_files to target specific paths."
+          });
+        }
+
         return {
           content: [{
             type: "text",
