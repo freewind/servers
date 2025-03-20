@@ -15,6 +15,19 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { diffLines, createTwoFilesPatch } from 'diff';
 import { minimatch } from 'minimatch';
 
+// Constants for documentation
+const JSON_ESCAPING_DETAILED_NOTE =
+  `IMPORTANT JSON ESCAPING NOTE: In JSON, backslashes are escape characters and need to be doubled. However, when our tools process your JSON, we expect you to use proper JSON syntax where:
+  1. For actual line breaks: use '\\n' in JSON (appears as a real line break in code)
+  2. For actual quotes: use '\\\"' in JSON (appears as a real quote in code)
+  3. Same applies to all escape sequences (\\t, \\r, etc.)
+  
+  Example:
+  {
+    "content": "line1\\nline2 \\\"quoted\\\""
+  }
+  creates content with a real line break and real quotes.`;
+
 // Command line argument parsing
 const args = process.argv.slice(2);
 if (args.length === 0) {
@@ -105,32 +118,32 @@ const ReadMultipleFilesArgsSchema = z.object({
 
 const WriteFileArgsSchema = z.object({
   path: z.string().describe('Path where the file should be written. Must be a full path - always use absolute paths.'),
-  content: z.string().describe('Content to write to the file. When writing content with line breaks, use single backslash + "n" rather than double backslashes.'),
+  content: z.string().describe('Content to write to the file. ' + JSON_ESCAPING_DETAILED_NOTE),
 });
 
 const WriteMultipleFilesArgsSchema = z.object({
   files: z.array(z.object({
     path: z.string().describe('Path where the file should be written. Must be a full path - always use absolute paths.'),
-    content: z.string().describe('Content to write to the file. When writing content with line breaks, use single backslash + "n" rather than double backslashes.'),
+    content: z.string().describe('Content to write to the file. ' + JSON_ESCAPING_DETAILED_NOTE),
     encoding: z.string().optional().default('utf-8').describe('Encoding to use when writing the file (default: utf-8). Common values: utf-8, ascii, binary')
   })).describe('Array of file objects to write simultaneously. Ideal for creating multiple related files in one operation.')
 });
 
 const EditOperation = z.object({
   oldText: z.string().describe('Text to search for - must match exactly. Be careful with whitespace, indentation, and line endings.'),
-  newText: z.string().describe('Text to replace with. When including line breaks, use single backslash + "n" rather than double backslashes.')
+  newText: z.string().describe('Text to replace with. ' + JSON_ESCAPING_DETAILED_NOTE)
 });
 
 const EditFileArgsSchema = z.object({
   path: z.string().describe('Path of the file to edit. Must be a full path - always use absolute paths.'),
-  edits: z.array(EditOperation).describe('Array of edit operations to apply. Each edit replaces exact line sequences with new content. Be careful with whitespace and line endings in both old and new text. When including line breaks, use single backslash + "n" rather than double backslashes.'),
+  edits: z.array(EditOperation).describe('Array of edit operations to apply. Each edit replaces exact line sequences with new content. Be careful with whitespace and line endings in both old and new text. ' + JSON_ESCAPING_DETAILED_NOTE),
   dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format. Set to true to see changes without applying them.')
 });
 
 const EditMultipleFilesArgsSchema = z.object({
   files: z.array(z.object({
     path: z.string().describe('Path of the file to edit. Must be a full path - always use absolute paths.'),
-    edits: z.array(EditOperation).describe('Array of edit operations to apply. Each edit replaces exact line sequences with new content. Be careful with whitespace and line endings in both old and new text. When including line breaks, use single backslash + "n" rather than double backslashes.'),
+    edits: z.array(EditOperation).describe('Array of edit operations to apply. Each edit replaces exact line sequences with new content. Be careful with whitespace and line endings in both old and new text. ' + JSON_ESCAPING_DETAILED_NOTE),
     dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format. Set to true to see changes without applying them.')
   })).describe('Array of file edit operations to perform simultaneously. Perfect for refactoring across components or implementing cross-cutting changes.')
 });
@@ -400,8 +413,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Create a new file or completely overwrite an existing file with new content. " +
           "Use with caution as it will overwrite existing files without warning. " +
           "Handles text content with proper encoding. Only works within allowed directories." +
-          "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
+          "Important: should always pass full paths to this tool. ",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema) as ToolInput,
       },
       {
@@ -416,8 +428,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
           "Use with caution as it will overwrite existing files without warning. " +
           "Only works within allowed directories." +
-          "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
+          "Important: should always pass full paths to this tool. ",
         inputSchema: zodToJsonSchema(WriteMultipleFilesArgsSchema) as ToolInput,
       },
       {
@@ -426,8 +437,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Make line-based edits to a text file. Each edit replaces exact line sequences " +
           "with new content. Returns a git-style diff showing the changes made. " +
           "Only works within allowed directories." +
-          "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
+          "Important: should always pass full paths to this tool. ",
         inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput,
       },
       {
@@ -440,8 +450,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Each file edit operation returns a git-style diff showing the changes made. " +
           "This parallel approach dramatically speeds up development workflows and AI-assisted coding. " +
           "Only works within allowed directories." +
-          "Important: should always pass full paths to this tool. " +
-          "Note: When writing content with line breaks, use single backslash + 'n' rather than double `\\\\`.",
+          "Important: should always pass full paths to this tool. ",
         inputSchema: zodToJsonSchema(EditMultipleFilesArgsSchema) as ToolInput,
       },
       {
